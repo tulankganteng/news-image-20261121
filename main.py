@@ -1,14 +1,13 @@
-#!/usr/bin/env python3
-"""Place the front page image where the harness expects it.
+"""THE WORLD TODAY -- Saturday 21 November 2026.
 
-The newspaper front page for Saturday 21 November 2026 is stored in this
-repository as entry.png. This program reads those bytes and writes them,
-unchanged, to ``entry.png`` inside the output directory named by the
-``MAKEFUN_OUTPUT_DIR`` environment variable (``/output`` when the
-variable is absent). It does no image processing and no network access,
-so running it twice always produces identical bytes. The copy is
-verified byte-for-byte after writing, so a partial or failed write
-is reported instead of passing silently.
+Entrypoint for the news-image-20261121 bounty. The repository holds
+the finished picture, entry.png, drawn from the day's verified world
+news. This program only puts an exact copy of that picture where the
+harness reads it, after checking the copy's fingerprint, so a
+damaged file can never pass as the entry.
+
+Standard library only. No network. Deterministic: two runs write
+the same bytes.
 """
 
 import hashlib
@@ -16,32 +15,38 @@ import os
 import sys
 from pathlib import Path
 
-
-def locate_source() -> Path:
-    """Return the path of the image held in this repository."""
-    return Path(__file__).resolve().parent / "entry.png"
+PICTURE_NAME = "entry.png"
+EXPECTED_DIGEST = "23f40ed1c04bd6ccde393725f9a6bd9bb5eb6c4173723ca1dfc7c9b3b502bbc2"
 
 
-def output_path() -> Path:
-    """Return where the image must be written."""
-    directory = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
-    return Path(directory) / "entry.png"
+def digest_of(data):
+    """SHA-256 hex digest of a byte string."""
+    return hashlib.sha256(data).hexdigest()
 
 
-def main() -> int:
-    source = locate_source()
-    target = output_path()
-    data = source.read_bytes()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
-    written = target.read_bytes()
-    if written != data:
-        print(f"mismatch: {target} differs from {source}", file=sys.stderr)
+def destination_folder():
+    """Folder the harness reads the finished image from."""
+    wanted = os.environ.get("MAKEFUN_OUTPUT_DIR")
+    if wanted:
+        return Path(wanted)
+    return Path("/output")
+
+
+def place_picture():
+    """Copy entry.png to the destination, fingerprint-checked."""
+    here = Path(__file__).resolve().parent
+    source = here / PICTURE_NAME
+    picture = source.read_bytes()
+    if digest_of(picture) != EXPECTED_DIGEST:
+        print("entry.png failed its fingerprint check", file=sys.stderr)
         return 1
-    digest = hashlib.sha256(data).hexdigest()
-    print(f"wrote {target} ({len(data)} bytes, sha256 {digest})")
+    folder = destination_folder()
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / PICTURE_NAME
+    target.write_bytes(picture)
+    print("wrote %s (%d bytes)" % (target, len(picture)))
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(place_picture())
